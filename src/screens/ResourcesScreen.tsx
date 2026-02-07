@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, Alert, Animated, Image } from 'react-native';
+import { SafeAreaView, View, Text, FlatList, Pressable, StyleSheet, Alert, Animated, Image, useWindowDimensions } from 'react-native';
+import ResourceCard from '../components/ResourceCard';
+import { Easing } from 'react-native';
 import { loadConfig, listPublicResources, fetchPublicIp, addClientToResource } from '../api/pangolin';
 import { Resource } from '../types/pangolin';
+import Icon from '../components/Icon';
+import theme from '../theme';
 
 export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
   const [resources, setResources] = useState<Resource[]>([]);
@@ -12,6 +16,8 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
   const scales = React.useRef(new Map<number, Animated.Value>());
   const settingsScale = React.useRef(new Animated.Value(1));
   const refreshScale = React.useRef(new Animated.Value(1));
+  const rotateAnim = React.useRef(new Animated.Value(0));
+  const rotateLoop = React.useRef<Animated.CompositeAnimation | null>(null);
 
   const getScale = (id: number) => {
     let v = scales.current.get(id);
@@ -21,6 +27,15 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
     }
     return v as Animated.Value;
   };
+
+  const { width } = useWindowDimensions();
+  const getNumColumns = () => {
+    if (width <= 420) return 2; // small phones
+    if (width <= 800) return 3; // larger phones / small tablets
+    if (width <= 1100) return 4; // tablets
+    return 5; // TV / large screens
+  };
+  const numColumns = getNumColumns();
 
   const resourceKey = (r: Partial<Resource> | { resourceId?: any; niceId?: any }) => String(r.resourceId ?? r.niceId ?? '');
 
@@ -60,14 +75,38 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
     }
   };
 
+  useEffect(() => {
+    if (refreshing) {
+      rotateAnim.current.setValue(0);
+      rotateLoop.current = Animated.loop(
+        Animated.timing(rotateAnim.current, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      rotateLoop.current.start();
+    } else {
+      if (rotateLoop.current) {
+        rotateLoop.current.stop();
+        rotateLoop.current = null;
+      }
+      rotateAnim.current.setValue(0);
+    }
+    return () => {
+      if (rotateLoop.current) rotateLoop.current.stop();
+    };
+  }, [refreshing]);
+
   const checkResourceHealth = async (r: Resource) => {
     const id = resourceKey(r);
     // prefer target healthStatus if available
     if (r.targets && r.targets.length > 0) {
       const t = r.targets[0];
+      console.warn('checking health for target', t.ip, 'status', t.healthStatus, r);
       if (t.healthStatus) {
         setHealthMap((m) => ({ ...m, [id]: { up: t.healthStatus === 'healthy', info: t.healthStatus } }));
-        return;
       }
     }
     // try an HTTP probe if resource looks HTTP
@@ -77,8 +116,6 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
       const t = r.targets[0];
       host = `${t.ip}${t.port ? `:${t.port}` : ''}`;
     }
-    Alert.alert('Debug', `Checking health for ${r.name} at ${host}`);
-
     if (!host) return;
     // normalize
     host = host.replace(/https?:\/\//, '').replace(/\/$/, '');
@@ -128,9 +165,10 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Public Resources</Text>
-        <View style={styles.headerActions}>
+      <SafeAreaView style={styles.safeAreaTop}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Public Resources</Text>
+          <View style={styles.headerActions}>
           <Pressable
             focusable={true}
             onFocus={() => Animated.timing(refreshScale.current, { toValue: 1.06, duration: 120, useNativeDriver: true }).start()}
@@ -138,9 +176,22 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
             onPress={refreshHealth}
             style={({ pressed }) => [styles.actionButton, pressed && styles.pressed, refreshing && styles.actionButtonDisabled]}
           >
-            <Animated.View style={{ transform: [{ scale: refreshScale.current }] }}>
-              <Text style={styles.actionButtonText}>{refreshing ? 'Refreshing…' : 'Refresh'}</Text>
-            </Animated.View>
+            {(() => {
+              const rotate = rotateAnim.current.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+              return (
+                <Animated.View style={{ transform: [{ scale: refreshScale.current }, { rotate }] }}>
+                  <Icon
+                    name={'refresh'}
+                    size={16}
+                    color={theme.tertiaryScale[50]}
+                    style={styles.actionButtonIcon}
+                    accessible={true}
+                    accessibilityRole="link"
+                    accessibilityLabel={'Refresh'}
+                  />
+                </Animated.View>
+              );
+            })()}
           </Pressable>
           <Pressable
             focusable={true}
@@ -150,60 +201,47 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
             style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
           >
             <Animated.View style={{ transform: [{ scale: settingsScale.current }] }}>
-              <Text style={styles.actionButtonText}>Change Settings</Text>
+              <Icon
+                name={'settings'}
+                size={16}
+                color={theme.tertiaryScale[50]}
+                style={styles.actionButtonIcon}
+                accessible={true}
+                accessibilityRole="link"
+                accessibilityLabel={'Settings'}
+              />
             </Animated.View>
           </Pressable>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
       {loading ? (
         <Text style={styles.info}>Loading…</Text>
       ) : (
         <FlatList
           data={resources}
           keyExtractor={(it) => String(it.resourceId ?? it.niceId ?? Math.random())}
-          numColumns={5}
+          numColumns={numColumns}
           columnWrapperStyle={styles.columnWrapper}
           renderItem={({ item, index }) => {
             const focused = focusedId === item.resourceId;
+            const key = String(item.resourceId ?? item.niceId ?? '');
+            const s = healthMap[key];
+            const targetStatus = item.targets && item.targets.length > 0 ? item.targets[0].healthStatus : undefined;
+            const up = s ? s.up : targetStatus ? targetStatus === 'healthy' : undefined;
             return (
-              <View style={styles.gridCell}>
-                <Pressable
-                  focusable={true}
-                  hasTVPreferredFocus={index === 0}
-                  onFocus={() => {
-                    setFocusedId(item.resourceId);
-                    Animated.timing(getScale(item.resourceId), { toValue: 1.06, duration: 120, useNativeDriver: true }).start();
-                  }}
-                  onBlur={() => {
-                    setFocusedId((id) => (id === item.resourceId ? null : id));
-                    Animated.timing(getScale(item.resourceId), { toValue: 1, duration: 120, useNativeDriver: true }).start();
-                  }}
-                  onPress={() => onSelect(item)}
-                  style={({ pressed }) => [styles.pressableWrap, pressed && styles.pressed]}
-                >
-                  <Animated.View style={[styles.gridItem, focused ? styles.itemFocused : null, { transform: [{ scale: getScale(item.resourceId) }] }]}>
-                    {(() => {
-                      const key = String(item.resourceId ?? item.niceId ?? '');
-                      const s = healthMap[key];
-                      const targetStatus = item.targets && item.targets.length > 0 ? item.targets[0].healthStatus : undefined;
-                      const up = s ? s.up : targetStatus ? targetStatus === 'healthy' : undefined;
-                      return (
-                        <>
-                          <View style={styles.statusOverlay} pointerEvents="none">
-                            <View style={[styles.statusDot, up ? styles.statusUp : styles.statusDown]} />
-                            <Text style={styles.statusText}>{s ? (s.up ? `${s.latency ?? '–'}ms` : 'Down') : targetStatus ? targetStatus : 'Unknown'}</Text>
-                          </View>
-                          {s?.favicon ? (
-                            <Image source={{ uri: s.favicon }} style={styles.favicon} />
-                          ) : null}
-                        </>
-                      );
-                    })()}
-                    <Text style={styles.itemTitle} numberOfLines={2}>{item.name || item.niceId || item.resourceId}</Text>
-                    <Text style={styles.itemSub} numberOfLines={1}>{item.fullDomain || ''}</Text>
-                  </Animated.View>
-                </Pressable>
-              </View>
+              <ResourceCard
+                item={item}
+                index={index}
+                focused={focused}
+                getScale={getScale}
+                onSelect={onSelect}
+                setFocusedId={setFocusedId}
+                s={s}
+                targetStatus={targetStatus}
+                up={up}
+                columns={numColumns}
+              />
             );
           }}
         />
@@ -214,35 +252,15 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 12 },
+  safeAreaTop: { backgroundColor: 'transparent', paddingTop: 8 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', color: '#FFF' },
   title: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
   info: { marginTop: 20 },
   columnWrapper: { justifyContent: 'flex-start', marginTop: 12 },
-  gridCell: { flex: 1 / 5, paddingHorizontal: 4, marginBottom: 10 },
-  gridItem: { padding: 10, borderRadius: 8, backgroundColor: '#111', aspectRatio: 1, justifyContent: 'flex-end', position: 'relative' },
-  itemFocused: {
-    borderWidth: 2,
-    borderColor: '#FFD54F',
-    backgroundColor: '#1b1b1b',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  pressableWrap: { flex: 1 },
-  pressed: { opacity: 0.7 },
   actionButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: '#222' },
   actionButtonDisabled: { opacity: 0.6 },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   actionButtonFocused: { borderWidth: 2, borderColor: '#FFD54F' },
   actionButtonText: { color: '#fff' },
-  itemTitle: { color: '#fff', fontSize: 16 },
-  itemSub: { color: '#aaa', marginTop: 4 },
-  statusOverlay: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  favicon: { position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: 6, overflow: 'hidden', borderColor: 'green' },
-  statusDot: { width: 8, height: 8, borderRadius: 6, marginRight: 6 },
-  statusUp: { backgroundColor: '#4CAF50' },
-  statusDown: { backgroundColor: '#e53935' },
-  statusText: { color: '#ccc', fontSize: 12 },
+  actionButtonIcon: { marginRight: 6, fontSize: 14, color: theme.tertiaryScale[50] },
 });

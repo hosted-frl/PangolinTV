@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Alert, NativeModules, Platform } from 'react-native';
 import { saveConfig, loadConfig, Config } from '../api/pangolin';
 
 export default function SetupScreen({ onDone }: { onDone: () => void }) {
@@ -20,6 +20,29 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      if (name && name !== 'My TV') return;
+      const detect = async () => {
+        try {
+          const RNDeviceInfo = (NativeModules as any).RNDeviceInfo;
+          if (RNDeviceInfo && typeof RNDeviceInfo.getDeviceName === 'function') {
+            const devName = await RNDeviceInfo.getDeviceName();
+            if (devName) return devName;
+          }
+        } catch (e) {}
+        try {
+          const pc = (NativeModules as any).PlatformConstants || (NativeModules as any).PlatformConstantsAndroid || (NativeModules as any).PlatformConstantsIOS;
+          const model = pc && (pc.Model || pc.model || pc.Brand || pc.manufacturer || pc.DeviceName);
+          if (model) return `${Platform.OS} ${model}`;
+        } catch (e) {}
+        return `${Platform.OS} device`;
+      };
+      const detected = await detect();
+      if (detected) setName(detected);
+    })();
+  }, []);
+
   const save = async () => {
     if (!baseUrl || !apiKey || !name) return Alert.alert('Please fill all fields');
     const cfg: Config = { baseUrl, apiKey, name, orgId: orgId || undefined };
@@ -37,8 +60,8 @@ export default function SetupScreen({ onDone }: { onDone: () => void }) {
       <Text style={styles.label}>API Key</Text>
       <TextInput style={styles.input} value={apiKey} onChangeText={setApiKey} secureTextEntry />
 
-      <Text style={styles.label}>Your Name</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} />
+      <Text style={styles.label}>Device Name</Text>
+      <Text style={[styles.input, { paddingVertical: 10 }]}>{name}</Text>
 
       <Text style={styles.label}>Organization ID (optional)</Text>
       <TextInput style={styles.input} value={orgId} onChangeText={setOrgId} />

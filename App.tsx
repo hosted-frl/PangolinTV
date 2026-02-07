@@ -11,6 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SetupScreen from './src/screens/SetupScreen';
 import ResourcesScreen from './src/screens/ResourcesScreen';
 import { loadConfig } from './src/api/pangolin';
+import theme from './src/theme';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -49,7 +50,7 @@ function AppContent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#071022',
+    backgroundColor: theme.primaryScale[10],
     padding: 12,
   },
 });
