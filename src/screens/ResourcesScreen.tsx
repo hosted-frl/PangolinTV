@@ -1,18 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, View, Text, FlatList, Pressable, StyleSheet, Alert, Animated, Image, useWindowDimensions } from 'react-native';
-import ResourceCard from '../components/ResourceCard';
 import { Easing } from 'react-native';
-import { loadConfig, listPublicResources, fetchPublicIp, addClientToResource } from '../api/pangolin';
+import ResourceCard from '../components/ResourceCard';
+import { loadConfig, listPublicResources, fetchPublicIp, listResourceRules } from '../api/pangolin';
+import safeAlert from '../utils/safeAlert';
 import { Resource } from '../types/pangolin';
 import Icon from '../components/Icon';
 import theme from '../theme';
 
-export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
+export default function ResourcesScreen({ onReset, onOpenSeerr }: { onReset: () => void; onOpenSeerr?: () => void }) {
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(false);
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const [healthMap, setHealthMap] = useState<Record<string, { up: boolean; latency?: number; info?: string; favicon?: string }>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [whitelistMap, setWhitelistMap] = useState<Record<string, boolean>>({});
+  const [showSeerrOverview, setShowSeerrOverview] = useState(false);
+  const [showSeerrSetup, setShowSeerrSetup] = useState(false);
   const scales = React.useRef(new Map<number, Animated.Value>());
   const settingsScale = React.useRef(new Animated.Value(1));
   const refreshScale = React.useRef(new Animated.Value(1));
@@ -28,6 +32,16 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
     return v as Animated.Value;
   };
 
+  const refreshHealth = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all(resources.map((r) => checkResourceHealth(r)));
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const { width } = useWindowDimensions();
   const getNumColumns = () => {
     if (width <= 420) return 2; // small phones
@@ -38,7 +52,6 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
   const numColumns = getNumColumns();
 
   const resourceKey = (r: Partial<Resource> | { resourceId?: any; niceId?: any }) => String(r.resourceId ?? r.niceId ?? '');
-
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -48,7 +61,7 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
         return;
       }
       try {
-        const list = await listPublicResources(cfg);
+        const list = await listPublicResources();
         const items = Array.isArray(list) ? list : list.items || [];
         setResources(items);
         // set initial focus to first item
@@ -58,22 +71,34 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
           items.forEach(checkResourceHealth);
         }, 120);
       } catch (e: any) {
-        Alert.alert('Error', e.message || 'Failed to load resources');
+        safeAlert('Error', e.message || 'Failed to load resources');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const refreshHealth = async () => {
-    if (refreshing) return;
-    setRefreshing(true);
-    try {
-      await Promise.all(resources.map((r) => checkResourceHealth(r)));
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  // when focus changes, check whether our public IP is whitelisted for that resource
+  useEffect(() => {
+    if (focusedId == null) return;
+    (async () => {
+      try {
+        const ip = await fetchPublicIp();
+        const rulesData = await listResourceRules(String(focusedId));
+        const rulesArr = Array.isArray(rulesData)
+          ? rulesData
+          : rulesData?.data?.rules ?? rulesData?.rules ?? rulesData?.items ?? [];
+        const already = Array.isArray(rulesArr) && rulesArr.some((r: any) => {
+          const candidates = [r.ip, r.value, r.address, r.client?.ip];
+          return candidates.some((v) => v === ip);
+        });
+        setWhitelistMap((m) => ({ ...m, [String(focusedId)]: Boolean(already) }));
+        } catch (e: any) {
+        // ignore errors here; leave map unchanged
+        console.debug('whitelist check failed for', focusedId, e?.message);
+      }
+    })();
+  }, [focusedId]);
 
   useEffect(() => {
     if (refreshing) {
@@ -151,17 +176,7 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
     }
   };
 
-  const onSelect = async (item: any) => {
-    const cfg = await loadConfig();
-    if (!cfg) return;
-    try {
-      const ip = await fetchPublicIp();
-      await addClientToResource(cfg, String(item.resourceId), ip);
-      Alert.alert('Success', `Added ${ip} to whitelist for ${item.name || item.niceId || item.resourceId}`);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to add to whitelist');
-    }
-  };
+  
 
   return (
     <View style={styles.container}>
@@ -169,6 +184,13 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
         <View style={styles.header}>
           <Text style={styles.title}>Public Resources</Text>
           <View style={styles.headerActions}>
+          <Pressable
+            focusable={true}
+            onPress={() => onOpenSeerr && onOpenSeerr()}
+            style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+          >
+            <Text style={{ color: '#fff' }}>Seerr</Text>
+          </Pressable>
           <Pressable
             focusable={true}
             onFocus={() => Animated.timing(refreshScale.current, { toValue: 1.06, duration: 120, useNativeDriver: true }).start()}
@@ -215,6 +237,7 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
           </View>
         </View>
       </SafeAreaView>
+      
       {loading ? (
         <Text style={styles.info}>Loading…</Text>
       ) : (
@@ -235,12 +258,13 @@ export default function ResourcesScreen({ onReset }: { onReset: () => void }) {
                 index={index}
                 focused={focused}
                 getScale={getScale}
-                onSelect={onSelect}
+                onWhitelistChange={(rid: string, val: boolean) => setWhitelistMap((m) => ({ ...m, [String(rid)]: Boolean(val) }))}
                 setFocusedId={setFocusedId}
                 s={s}
                 targetStatus={targetStatus}
                 up={up}
-                columns={numColumns}
+                  columns={numColumns}
+                  whitelisted={Boolean(whitelistMap[String(item.resourceId ?? item.niceId ?? '')])}
               />
             );
           }}

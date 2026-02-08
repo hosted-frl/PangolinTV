@@ -10,8 +10,13 @@ import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SetupScreen from './src/screens/SetupScreen';
 import ResourcesScreen from './src/screens/ResourcesScreen';
+import SeerrSetupScreen from './src/screens/SeerrSetupScreen';
+import SeerrOverview from './src/screens/SeerrOverview';
+import CustomAlert from './src/components/CustomAlert';
 import { loadConfig } from './src/api/pangolin';
 import theme from './src/theme';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -19,6 +24,7 @@ function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <CustomAlert />
       <AppContent />
     </SafeAreaProvider>
   );
@@ -26,6 +32,8 @@ function App() {
 
 function AppContent() {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const navigationRef = createNavigationContainerRef();
+  const Stack = createNativeStackNavigator();
 
   useEffect(() => {
     (async () => {
@@ -37,13 +45,33 @@ function AppContent() {
   if (configured === null) return <View style={styles.container} />;
 
   return (
-    <View style={styles.container}>
+    <NavigationContainer ref={navigationRef}>
+      <StatusBar />
       {configured ? (
-        <ResourcesScreen onReset={() => setConfigured(false)} />
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.primaryScale[10] } }}>
+          <Stack.Screen name="Resources">
+            {() => (
+              <ResourcesScreen
+                onReset={() => setConfigured(false)}
+                onOpenSeerr={async () => {
+                  const cfg = await loadConfig();
+                  if (!cfg || !cfg.seerrUrl || !cfg.seerrApiKey) navigationRef.current?.navigate('SeerrSetup');
+                  else navigationRef.current?.navigate('SeerrOverview');
+                }}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="SeerrSetup" component={SeerrSetupScreen} />
+          <Stack.Screen name="SeerrOverview" component={SeerrOverview} />
+        </Stack.Navigator>
       ) : (
-        <SetupScreen onDone={() => setConfigured(true)} />
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.primaryScale[10] } }}>
+          <Stack.Screen name="Setup">
+            {() => <SetupScreen onDone={() => setConfigured(true)} />}
+          </Stack.Screen>
+        </Stack.Navigator>
       )}
-    </View>
+    </NavigationContainer>
   );
 }
 
