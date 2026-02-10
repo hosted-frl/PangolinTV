@@ -1406,6 +1406,16 @@
     fast-glob "^3.3.2"
     fast-xml-parser "^4.4.1"
 
+"@react-native-community/cli-config-android@20.1.1":
+  version "20.1.1"
+  resolved "https://registry.yarnpkg.com/@react-native-community/cli-config-android/-/cli-config-android-20.1.1.tgz#7e0098b64e95d91c899768737b22e3a9a95f6eed"
+  integrity sha512-1iUV2rPAyoWPo8EceAFC2vZTF+pEd9YqS87c0aqpbGOFE0gs1rHEB+auVR8CdjzftR4U9sq6m2jrdst0rvpIkg==
+  dependencies:
+    "@react-native-community/cli-tools" "20.1.1"
+    fast-glob "^3.3.2"
+    fast-xml-parser "^4.4.1"
+    picocolors "^1.1.1"
+
 "@react-native-community/cli-config-apple@20.0.0":
   version "20.0.0"
   resolved "https://registry.yarnpkg.com/@react-native-community/cli-config-apple/-/cli-config-apple-20.0.0.tgz#eaef1db689a4f205cf665306c04e4d717c5d7d46"
@@ -1460,6 +1470,17 @@
     execa "^5.0.0"
     logkitty "^0.7.1"
 
+"@react-native-community/cli-platform-android@20.1.1":
+  version "20.1.1"
+  resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-android/-/cli-platform-android-20.1.1.tgz#bf3dca3c699786b92f3a45b95e771bd993ec5fe4"
+  integrity sha512-KPheizJQI0tVvBLy9owzpo+A9qDsDAa87e7a8xNaHnwqGpExnIzFPrbdvrltiZjstU2eB/+/UgNQxYIEd4Oc+g==
+  dependencies:
+    "@react-native-community/cli-config-android" "20.1.1"
+    "@react-native-community/cli-tools" "20.1.1"
+    execa "^5.0.0"
+    logkitty "^0.7.1"
+    picocolors "^1.1.1"
+
 "@react-native-community/cli-platform-apple@20.0.0":
   version "20.0.0"
   resolved "https://registry.yarnpkg.com/@react-native-community/cli-platform-apple/-/cli-platform-apple-20.0.0.tgz#976f535278b6671703fce5dc91833cedd45a1040"
@@ -1507,6 +1528,22 @@
     launch-editor "^2.9.1"
     mime "^2.4.1"
     ora "^5.4.1"
+    prompts "^2.4.2"
+    semver "^7.5.2"
+
+"@react-native-community/cli-tools@20.1.1":
+  version "20.1.1"
+  resolved "https://registry.yarnpkg.com/@react-native-community/cli-tools/-/cli-tools-20.1.1.tgz#f47bcfe39fb9e9118fdf34d880322b6ffc2cabbb"
+  integrity sha512-j+zX/H2X+6ZGneIDj56tZ1Hbnip5nSfnq7yGlMyF/zm3U1hKp3G1jN5v0YEfnz/zEmjr7zruh4Y06KmZrF1lrA==
+  dependencies:
+    "@vscode/sudo-prompt" "^9.0.0"
+    appdirsjs "^1.2.4"
+    execa "^5.0.0"
+    find-up "^5.0.0"
+    launch-editor "^2.9.1"
+    mime "^2.4.1"
+    ora "^5.4.1"
+    picocolors "^1.1.1"
     prompts "^2.4.2"
     semver "^7.5.2"
 
