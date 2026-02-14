@@ -6,12 +6,20 @@ import lockFill from '../../assets/icons/lock-fill.svg';
 import unlockFill from '../../assets/icons/unlock-fill.svg';
 import refresh from '../../assets/icons/refresh.svg';
 import settings from '../../assets/icons/settings.svg';
+import hourglass from '../../assets/icons/hourglass-line.svg';
+import processing from '../../assets/icons/loader-2-line.svg';
+import partially from '../../assets/icons/indeterminate-circle-line.svg';
+import available from '../../assets/icons/checkbox-circle-line.svg';
 
 const Components = {
   'lock-fill': lockFill,
   'unlock-fill': unlockFill,
   'refresh': refresh,
   'settings': settings,
+  'pending': hourglass,
+  'processing': processing,
+  'partially': partially,
+  'available': available,
 };
 
 export default function Icon(block: {

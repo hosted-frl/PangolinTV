@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import safeAlert from '../utils/safeAlert';
 import { loadConfig, saveConfig, Config } from '../api/pangolin';
 
-export default function SeerrSetupScreen({ onDone }: { onDone: () => void }) {
+export default function SeerrSetupScreen() {
   const [seerrUrl, setSeerrUrl] = useState('');
   const [seerrApiKey, setSeerrApiKey] = useState('');
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     (async () => {
       const cfg = await loadConfig();
       if (cfg) {
         setSeerrUrl(cfg.seerrUrl || '');
-        setSeerrApiKey(cfg.seerrApiKey || '');
+        setSeerrApiKey(cfg.seerrApiKey || 'MTc2OTYwODgyMDg1MDdmMjI5N2EwLWE3ZTUtNDFmYi05ZWVhLTkwY2E2MTRkNGZjMQ==');
       }
     })();
   }, []);
@@ -22,7 +24,7 @@ export default function SeerrSetupScreen({ onDone }: { onDone: () => void }) {
     const cfg = (await loadConfig()) || ({ baseUrl: '', apiKey: '', orgId: undefined } as Config);
     const newCfg: Config = { ...cfg, seerrUrl, seerrApiKey } as any;
     await saveConfig(newCfg);
-    onDone();
+    navigation.navigate('SeerrOverview');
   };
 
   return (
